@@ -6,12 +6,17 @@
 GIT=`sh /etc/profile; which git`
 
 LATEST_TAG=`git describe --tags --abbrev=0 --match "v*.*.*"`
+#if [ "${LATEST_TAG}" == "" ]; then
+#  echo "error: Version tag not found"
+#  exit 1
 if [ "${LATEST_TAG}" == "" ]; then
-  echo "error: Version tag not found"
-  exit 1
+  VERSION="1.0.0"  # デフォルトのバージョンを設定する場合
+  echo "Warning: Version tag not found, using default version ${VERSION}"
+else
+  VERSION=`echo "${LATEST_TAG}" | cut -c 2-`
 fi
 
-VERSION=`echo "${LATEST_TAG}" | cut -c 2-`
+#VERSION=`echo "${LATEST_TAG}" | cut -c 2-`
 
 NUM_COMMITS=`"${GIT}" rev-list HEAD --count`
 
