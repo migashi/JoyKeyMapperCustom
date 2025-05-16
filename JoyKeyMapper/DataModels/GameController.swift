@@ -5,6 +5,9 @@
 //  Created by magicien on 2019/07/14.
 //  Copyright © 2019 DarkHorse. All rights reserved.
 //
+//Ref: https://github.com/magicien/JoyKeyMapper/issues/8
+//斜め方向の対応は上記のissueにおけるAntoine Nedelec氏のコードを参考に調整しました
+
 
 import JoyConSwift
 import InputMethodKit
@@ -26,6 +29,15 @@ extension JoyCon.BatteryStatus {
     var localizedString: String {
         return NSLocalizedString(self.string, comment: "BatteryStatus localized string")
     }
+}
+
+extension JoyCon.StickDirection {
+    static let correspStickDiag: [JoyCon.StickDirection: [JoyCon.StickDirection]] = [
+        .DownLeft: [.Down, .Left],
+        .DownRight: [.Down, .Right],
+        .UpLeft: [.Up, .Left],
+        .UpRight: [.Up, .Right]
+    ]
 }
 
 class GameController {
@@ -340,10 +352,84 @@ class GameController {
     
     func leftStickHandler(newDirection: JoyCon.StickDirection, oldDirection: JoyCon.StickDirection) {
         if self.currentLStickMode == .Key {
-            if let config = self.currentLStickConfig[oldDirection] {
-                self.buttonReleaseHandler(config: config)
+            
+            var olds = [JoyCon.StickDirection]()
+            var news = [JoyCon.StickDirection]()
+
+
+//            print(newDirection, oldDirection)
+//            print(JoyCon.StickDirection.correspStickDiag.keys.contains(oldDirection))
+            
+            if JoyCon.StickDirection.correspStickDiag.keys.contains(oldDirection){
+//                斜めだった場合
+//                print("old:")
+                for direction in JoyCon.StickDirection.correspStickDiag[oldDirection] ?? [] {
+//                    print(direction)
+                    olds.append(direction)
+                }
+//                print("\(oldDirection)→\(value)")
+            } else {
+//                print("old:\(oldDirection)")
+                olds.append(oldDirection)
             }
-            if let config = self.currentLStickConfig[newDirection] {
+            
+            if JoyCon.StickDirection.correspStickDiag.keys.contains(newDirection){
+//                斜めだった場合
+//                print("new:")
+                for direction in JoyCon.StickDirection.correspStickDiag[newDirection] ?? [] {
+//                    print(direction)
+                    news.append(direction)
+                }
+//                print("\(oldDirection)→\(value)")
+            } else {
+//                print("new:\(newDirection)")
+                news.append(newDirection)
+                
+            }
+
+//            print(olds, news)
+            let common = Set(olds).intersection(news).first
+            let commonw = Set(olds).subtracting(news).first
+
+//            print("維持する項目: \(common ?? .Neutral)")
+//            print("解除項目: \(commonw ?? .Neutral)")
+            
+            
+//            前の入力方向を離す処理
+            if JoyCon.StickDirection.correspStickDiag.keys.contains(oldDirection) {
+//                斜め方向だったら分解して処理する
+                for direction in JoyCon.StickDirection.correspStickDiag[oldDirection] ?? [] {
+//                    print(direction)
+                    if direction != commonw && newDirection != .Neutral{
+//                        print("維持判定:\(direction)")
+                        
+                    }
+                    else{
+                        if let config = self.currentLStickConfig[direction] {
+                            self.buttonReleaseHandler(config: config)
+                    }
+                    
+                    }
+                }
+            } else if oldDirection != commonw && newDirection != .Neutral{
+//                print("維持判定:\(oldDirection)")
+                
+            }else{
+                if let config = self.currentLStickConfig[oldDirection] {
+
+                    self.buttonReleaseHandler(config: config)
+                }
+            }
+            
+            
+//            新たな入力方法を押下する処理
+            if JoyCon.StickDirection.correspStickDiag.keys.contains(newDirection) {
+                for direction in JoyCon.StickDirection.correspStickDiag[newDirection] ?? [] {
+                    if let config = self.currentLStickConfig[direction] {
+                        self.buttonPressHandler(config: config)
+                    }
+                }
+            } else if let config = self.currentLStickConfig[newDirection] {
                 self.buttonPressHandler(config: config)
             }
         }
@@ -351,10 +437,22 @@ class GameController {
 
     func rightStickHandler(newDirection: JoyCon.StickDirection, oldDirection: JoyCon.StickDirection) {
         if self.currentRStickMode == .Key {
-            if let config = self.currentRStickConfig[oldDirection] {
+            if JoyCon.StickDirection.correspStickDiag.keys.contains(oldDirection) {
+                for direction in JoyCon.StickDirection.correspStickDiag[oldDirection] ?? [] {
+                    if let config = self.currentRStickConfig[direction] {
+                        self.buttonReleaseHandler(config: config)
+                    }
+                }
+            } else if let config = self.currentRStickConfig[oldDirection] {
                 self.buttonReleaseHandler(config: config)
             }
-            if let config = self.currentRStickConfig[newDirection] {
+            if JoyCon.StickDirection.correspStickDiag.keys.contains(newDirection) {
+                for direction in JoyCon.StickDirection.correspStickDiag[newDirection] ?? [] {
+                    if let config = self.currentRStickConfig[direction] {
+                        self.buttonPressHandler(config: config)
+                    }
+                }
+            } else if let config = self.currentRStickConfig[newDirection] {
                 self.buttonPressHandler(config: config)
             }
         }
