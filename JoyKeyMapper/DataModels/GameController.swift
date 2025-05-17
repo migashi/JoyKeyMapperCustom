@@ -8,6 +8,9 @@
 //Ref: https://github.com/magicien/JoyKeyMapper/issues/8
 //斜め方向の対応は上記のissueにおけるAntoine Nedelec氏のコードを参考に調整しました
 
+//Ref: https://github.com/qibinc/JoyMapperSilicon
+//マウス移動の挙動はJoyMapperSiliconに含まれるコードを参考にしました
+
 
 import JoyConSwift
 import InputMethodKit
@@ -237,7 +240,9 @@ class GameController {
         
             if config.mouseButton >= 0 {
                 let mousePos = NSEvent.mouseLocation
-                let cursorPos = CGPoint(x: mousePos.x, y: NSScreen.main!.frame.maxY - mousePos.y)
+//                let cursorPos = CGPoint(x: mousePos.x, y: NSScreen.main!.frame.maxY - mousePos.y)
+                let cursorPos = CGPoint(x: mousePos.x, y: NSScreen.screens[0].frame.maxY - mousePos.y)
+
 
                 metaKeyEvent(config: config, keyDown: true)
 
@@ -295,8 +300,8 @@ class GameController {
 
             if config.mouseButton >= 0 {
                 let mousePos = NSEvent.mouseLocation
-                let cursorPos = CGPoint(x: mousePos.x, y: NSScreen.main!.frame.maxY - mousePos.y)
-                
+//                let cursorPos = CGPoint(x: mousePos.x, y: NSScreen.main!.frame.maxY - mousePos.y)
+                let cursorPos = CGPoint(x: mousePos.x, y: NSScreen.screens[0].frame.maxY - mousePos.y)
                 var event: CGEvent?
                 if config.mouseButton == 0 {
                     event = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: cursorPos, mouseButton: .left)
@@ -318,10 +323,29 @@ class GameController {
             return
         }
         let mousePos = NSEvent.mouseLocation
-        let newX = mousePos.x + pos.x * speed
-        let newY = NSScreen.main!.frame.maxY - mousePos.y - pos.y * speed
+//        let newX = mousePos.x + pos.x * speed
+//        let newY = NSScreen.main!.frame.maxY - mousePos.y - pos.y * speed
+//        let newX = min(max(0, mousePos.x + pos.x * speed), NSScreen.main!.frame.maxX)
+//             let newY = min(max(0, NSScreen.main!.frame.maxY - mousePos.y - pos.y * speed), NSScreen.main!.frame.maxY)
         
+        
+        
+
+        // 複数ディスプレイを含めた仮想スクリーン領域
+        let virtualFrame = NSScreen.screens.reduce(NSScreen.screens[0].frame) { $0.union($1.frame) }
+
+        // 上下反転したY座標を仮想スクリーン基準で計算
+        let newX = min(max(virtualFrame.minX, mousePos.x + pos.x * speed), virtualFrame.maxX)
+        let flippedY = virtualFrame.maxY - mousePos.y
+        let newY = min(max(virtualFrame.minY, flippedY - pos.y * speed), virtualFrame.maxY)
+
         let newPos = CGPoint(x: newX, y: newY)
+
+        
+        
+        
+        
+        
         
         let source = CGEventSource(stateID: .hidSystemState)
         if self.isLeftDragging {
@@ -334,7 +358,9 @@ class GameController {
             let event = CGEvent(mouseEventSource: source, mouseType: .otherMouseDragged, mouseCursorPosition: newPos, mouseButton: .center)
             event?.post(tap: .cghidEventTap)
         } else {
-            CGDisplayMoveCursorToPoint(CGMainDisplayID(), newPos)
+//            CGDisplayMoveCursorToPoint(CGMainDisplayID(), newPos)
+            let event = CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: newPos, mouseButton: .left)
+            event?.post(tap: .cghidEventTap)
         }
     }
     
@@ -388,7 +414,7 @@ class GameController {
             }
 
 //            print(olds, news)
-            let common = Set(olds).intersection(news).first
+//            let common = Set(olds).intersection(news).first
             let commonw = Set(olds).subtracting(news).first
 
 //            print("維持する項目: \(common ?? .Neutral)")
@@ -436,16 +462,78 @@ class GameController {
     }
 
     func rightStickHandler(newDirection: JoyCon.StickDirection, oldDirection: JoyCon.StickDirection) {
-        if self.currentRStickMode == .Key {
-            if JoyCon.StickDirection.correspStickDiag.keys.contains(oldDirection) {
+        if self.currentLStickMode == .Key {
+            
+            var olds = [JoyCon.StickDirection]()
+            var news = [JoyCon.StickDirection]()
+
+
+//            print(newDirection, oldDirection)
+//            print(JoyCon.StickDirection.correspStickDiag.keys.contains(oldDirection))
+            
+            if JoyCon.StickDirection.correspStickDiag.keys.contains(oldDirection){
+//                斜めだった場合
+//                print("old:")
                 for direction in JoyCon.StickDirection.correspStickDiag[oldDirection] ?? [] {
-                    if let config = self.currentRStickConfig[direction] {
-                        self.buttonReleaseHandler(config: config)
+//                    print(direction)
+                    olds.append(direction)
+                }
+//                print("\(oldDirection)→\(value)")
+            } else {
+//                print("old:\(oldDirection)")
+                olds.append(oldDirection)
+            }
+            
+            if JoyCon.StickDirection.correspStickDiag.keys.contains(newDirection){
+//                斜めだった場合
+//                print("new:")
+                for direction in JoyCon.StickDirection.correspStickDiag[newDirection] ?? [] {
+//                    print(direction)
+                    news.append(direction)
+                }
+//                print("\(oldDirection)→\(value)")
+            } else {
+//                print("new:\(newDirection)")
+                news.append(newDirection)
+                
+            }
+
+//            print(olds, news)
+//            let common = Set(olds).intersection(news).first
+            let commonw = Set(olds).subtracting(news).first
+
+//            print("維持する項目: \(common ?? .Neutral)")
+//            print("解除項目: \(commonw ?? .Neutral)")
+            
+            
+//            前の入力方向を離す処理
+            if JoyCon.StickDirection.correspStickDiag.keys.contains(oldDirection) {
+//                斜め方向だったら分解して処理する
+                for direction in JoyCon.StickDirection.correspStickDiag[oldDirection] ?? [] {
+//                    print(direction)
+                    if direction != commonw && newDirection != .Neutral{
+//                        print("維持判定:\(direction)")
+                        
+                    }
+                    else{
+                        if let config = self.currentRStickConfig[direction] {
+                            self.buttonReleaseHandler(config: config)
+                    }
+                    
                     }
                 }
-            } else if let config = self.currentRStickConfig[oldDirection] {
-                self.buttonReleaseHandler(config: config)
+            } else if oldDirection != commonw && newDirection != .Neutral{
+//                print("維持判定:\(oldDirection)")
+                
+            }else{
+                if let config = self.currentRStickConfig[oldDirection] {
+
+                    self.buttonReleaseHandler(config: config)
+                }
             }
+            
+            
+//            新たな入力方法を押下する処理
             if JoyCon.StickDirection.correspStickDiag.keys.contains(newDirection) {
                 for direction in JoyCon.StickDirection.correspStickDiag[newDirection] ?? [] {
                     if let config = self.currentRStickConfig[direction] {
